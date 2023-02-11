@@ -3,7 +3,8 @@ from dataclasses import dataclass
 from spotipy.oauth2 import SpotifyClientCredentials
 import spotipy
 import csv
-from pprint import pprint
+import config
+import sys
 
 #@dataclass
 class Track:
@@ -28,7 +29,7 @@ class Track:
     bpm: float
     bpm_confidence: float
     time_signature: str
-    time_sig_confidence: float
+    time_signature_confidence: float
     key: str # key + major/minor
     key_confidence: float
     major_minor_confidence: float
@@ -43,27 +44,47 @@ class Track:
     valence: float  # happiness
 
 
+options = config.read_options()
+badopts = set(options.columns) - set(Track.__annotations__.keys())
+if badopts:
+    print('Unknown columns in ini file:', ','.join(badopts))
+    sys.exit(1)
+
+try:
+    sp = spotipy.Spotify(client_credentials_manager=SpotifyClientCredentials(client_id=options.client_id,
+                                                                         client_secret=options.client_secret))
+except Exception as error:
+    print(error)
+    sys.exit(1)
 
 
-
-
-
-sp = spotipy.Spotify(client_credentials_manager=SpotifyClientCredentials(client_id='063c4d2d4e36473ca5ed266cfa6c9ee5',
-                                                                         client_secret='a10c4083a9e54fb99014fb849af54b94'))
-
-pl_id = 'https://open.spotify.com/playlist/0J7K5dvE7EOlM0Ev2a4pDQ'
+#pl_id = 'https://open.spotify.com/playlist/0J7K5dvE7EOlM0Ev2a4pDQ'
+pl_id = 'https://open.spotify.com/playlist/3LHgHAY5IbzqFYUXZskxOp'
 
 def get_name(pl):
-    return sp.playlist(pl, fields=['name'])['name']
+    try:
+        return sp.playlist(pl, fields=['name'])['name']
+    except Exception as error:
+        print(error)
+        sys.exit(1)
 
 def get_items(pl):
     pl_items = []
     offset = 0
+    count = 0
     while True:
         response = sp.playlist_items(pl, offset=offset)
         items = response['items']
+        track_ids = [x['track']['id'] for x in items]
         if not items:
             return pl_items
+        audio_features = sp.audio_features(track_ids)
+        for item, af in zip(items, audio_features):
+            item['audio_features'] = af
+        for item in items:
+            count += 1
+            print(f'Track {count}/{len(items)}: {item["track"]["name"]}')
+            item['audio_analysis'] = get_audio_analysis(item['track']['id'])
         pl_items += items
         offset += len(items)
 
@@ -71,21 +92,6 @@ def get_items(pl):
 def get_audio_analysis(track_id):
     return sp.audio_analysis(track_id)
 
-def get_audio_features(track_id):
-    return sp.audio_features([track_id])[0]
-
-# while True:
-#     response = sp.playlist_items(pl_id,
-#                                  offset=offset,
-#                                  fields='items.track.id,total',
-#                                  additional_types=['track'])
-#
-#     if len(response['items']) == 0:
-#         break
-#
-#     pprint(response['items'])
-#     offset = offset + len(response['items'])
-#     print(offset, "/", response['total'])
 
 def pl_item_to_track(item):
     track = item['track']
@@ -110,7 +116,10 @@ def pl_item_to_track(item):
     def roundit(n):
         return round(n*1000)/1000
 
-    af = get_audio_features(t.id)
+    # return
+
+    # af = get_audio_features(t.id)
+    af = item['audio_features']
     t.danceability = roundit(af['danceability'])
     t.energy = roundit(af['energy'])
     t.loudness_db = roundit(af['loudness'])
@@ -122,7 +131,8 @@ def pl_item_to_track(item):
                         
     t.href = af['track_href']
 
-    aa = get_audio_analysis(t.id)['track']
+    # aa = get_audio_analysis(t.id)['track']
+    aa = item['audio_analysis']['track']
     t.end_of_fade_in = aa['end_of_fade_in']
     t.start_of_fade_out = aa['start_of_fade_out']
     t.bpm = aa['tempo']
@@ -144,30 +154,30 @@ def pl_item_to_track(item):
 
     return t
 
+
 def write_csv(name, tracks: list[Track]):
     fname = name+'.csv'
-    fields = [x for x in tracks[0].__dir__() if not x.startswith('_')]
+    #fields = [x for x in tracks[0].__dir__() if not x.startswith('_')]
+    fields = options.columns
     with open(fname, 'w', newline='') as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=fields)
+        writer = csv.DictWriter(csvfile, fieldnames=fields, extrasaction='ignore')
         writer.writeheader()
         for track in tracks:
             writer.writerow(track.__dict__)
 
 
-
 def main(pl_id):
     tracks = []
-    items = get_items(pl_id)
-    count = 1
     name = get_name(pl_id)
     print(f'Playlist Name: {name}')
+    items = get_items(pl_id)
+    count = 1
 
     for item in items:
-        print(f'Track {count}/{len(items)}: {item["track"]["name"]}')
+        # print(f'Track {count}/{len(items)}: {item["track"]["name"]}')
         tracks.append(pl_item_to_track(item))
         tracks[-1].number = count
         count += 1
     write_csv(name, tracks)
 
 main(pl_id)
-#print(tracks, len(tracks))
