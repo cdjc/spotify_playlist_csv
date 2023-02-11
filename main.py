@@ -1,12 +1,19 @@
-from dataclasses import dataclass
+import os
 
 from spotipy.oauth2 import SpotifyClientCredentials
 import spotipy
 import csv
 import config
 import sys
+import atexit
 
-#@dataclass
+def wait_for_keypress():
+    input('Press Enter to exit')
+
+print('Spotify playlist to CSV program starting...')
+atexit.register(wait_for_keypress)
+
+
 class Track:
     number: int
     id: str
@@ -58,15 +65,9 @@ except Exception as error:
     sys.exit(1)
 
 
-#pl_id = 'https://open.spotify.com/playlist/0J7K5dvE7EOlM0Ev2a4pDQ'
-
-
 def get_name(pl):
-    try:
-        return sp.playlist(pl, fields=['name'])['name']
-    except Exception as error:
-        print(error)
-        sys.exit(1)
+    return sp.playlist(pl, fields=['name'])['name']
+
 
 def get_items(pl):
     pl_items = []
@@ -162,6 +163,7 @@ def write_csv(name, tracks: list[Track]):
 
 def main(pl_id):
     tracks = []
+    print(f'Playlist Id: {pl_id}')
     name = get_name(pl_id)
     print(f'Playlist Name: {name}')
     items = get_items(pl_id)
@@ -176,6 +178,15 @@ def main(pl_id):
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
-        print('Pass a spotify playlist id as the command line argument')
+        print('Drag a file with one spotify playlist per line onto the .exe file (or pass file on commandline)')
         sys.exit(1)
-    main(sys.argv[-1])
+    print(os.getcwd())
+    print(f'Opening file with one playlist per line: {sys.argv[-1]}')
+    for line in open(sys.argv[-1], 'rt'):
+        print()
+        print()
+        try:
+            main(line.strip())
+        except Exception as error:
+            print(f'Error with playlist {line.strip()}: {error}')
+
