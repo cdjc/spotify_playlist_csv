@@ -59,7 +59,7 @@ except Exception as error:
 
 
 #pl_id = 'https://open.spotify.com/playlist/0J7K5dvE7EOlM0Ev2a4pDQ'
-pl_id = 'https://open.spotify.com/playlist/3LHgHAY5IbzqFYUXZskxOp'
+
 
 def get_name(pl):
     try:
@@ -116,9 +116,6 @@ def pl_item_to_track(item):
     def roundit(n):
         return round(n*1000)/1000
 
-    # return
-
-    # af = get_audio_features(t.id)
     af = item['audio_features']
     t.danceability = roundit(af['danceability'])
     t.energy = roundit(af['energy'])
@@ -131,7 +128,6 @@ def pl_item_to_track(item):
                         
     t.href = af['track_href']
 
-    # aa = get_audio_analysis(t.id)['track']
     aa = item['audio_analysis']['track']
     t.end_of_fade_in = aa['end_of_fade_in']
     t.start_of_fade_out = aa['start_of_fade_out']
@@ -144,7 +140,6 @@ def pl_item_to_track(item):
         t.key = 'unknown'
         t.key_confidence = 0.0
     else:
-        #keys = ['C','C♯/D♭', 'D', 'D♯/E♭', 'E', 'F', 'F♯/G♭', 'G', 'G♯/A♭', 'A', 'A♯/B♭', 'B']
         keys = ['C', 'C#/Db', 'D', 'D#/Eb', 'E', 'F', 'F#/Gb', 'G', 'G#/Ab', 'A', 'A#/Bb', 'B']
 
         mode = 'major' if aa['mode'] == 1 else 'minor'
@@ -157,7 +152,6 @@ def pl_item_to_track(item):
 
 def write_csv(name, tracks: list[Track]):
     fname = name+'.csv'
-    #fields = [x for x in tracks[0].__dir__() if not x.startswith('_')]
     fields = options.columns
     with open(fname, 'w', newline='') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fields, extrasaction='ignore')
@@ -174,10 +168,14 @@ def main(pl_id):
     count = 1
 
     for item in items:
-        # print(f'Track {count}/{len(items)}: {item["track"]["name"]}')
         tracks.append(pl_item_to_track(item))
         tracks[-1].number = count
         count += 1
     write_csv(name, tracks)
 
-main(pl_id)
+
+if __name__ == '__main__':
+    if len(sys.argv) != 2:
+        print('Pass a spotify playlist id as the command line argument')
+        sys.exit(1)
+    main(sys.argv[-1])
